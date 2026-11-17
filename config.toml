@@ -1,0 +1,28 @@
+[app]
+name = "localmind"
+host = "127.0.0.1"
+port = 8000
+
+[ollama]
+base_url = "http://localhost:11434"
+chat_model = "qwen2.5:7b"
+embedding_model = "nomic-embed-text"
+timeout = 120.0
+
+[data]
+dir = "./data"
+documents_dir = "./data/documents"
+index_path = "./data/indexes/vector_index.json"
+
+[rag]
+max_chunk_size = 800
+chunk_overlap = 120
+default_top_k = 4
+min_retrieval_score = 0.2
+
+[documents]
+max_upload_size_bytes = 1048576
+allowed_extensions = [".txt", ".md"]
+
+[ui]
+enabled = true
