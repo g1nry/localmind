@@ -14,6 +14,7 @@ from rag_agent.services.directory_indexing_service import DirectoryIndexingServi
 from rag_agent.services.document_ingestion_service import DocumentIngestionService
 from rag_agent.services.embedding_service import EmbeddingService
 from rag_agent.services.retrieval_service import RetrievalService
+from rag_agent.services.fetch_service import FetchService
 from rag_agent.storage.document_store import DocumentStore
 from rag_agent.storage.vector_store import JsonVectorStore
 
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 class ApplicationServices:
     settings: Settings
     retrieval: RetrievalService
+    fetch: FetchService
     ingestion: DocumentIngestionService
     indexing: DirectoryIndexingService
     _stack: AsyncExitStack = field(repr=False)
@@ -85,6 +87,7 @@ async def open_services(settings: Settings | None = None):
         services = ApplicationServices(
             settings=settings,
             retrieval=RetrievalService(settings, vector_store, embeddings),
+            fetch=FetchService(vector_store),
             ingestion=ingestion,
             indexing=DirectoryIndexingService(settings, vector_store, ingestion),
             _stack=stack,
