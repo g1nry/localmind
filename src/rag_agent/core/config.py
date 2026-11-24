@@ -4,6 +4,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from rag_agent.domain.sources import DirectorySource
+
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 
 
@@ -46,6 +48,7 @@ class Settings(BaseModel):
     chunk_overlap: int = Field(default=120, alias="CHUNK_OVERLAP")
     default_top_k: int = Field(default=4, alias="DEFAULT_TOP_K")
     min_retrieval_score: float = Field(default=0.2, alias="MIN_RETRIEVAL_SCORE")
+    sources: dict[str, DirectorySource] = Field(default_factory=dict)
     ui_enabled: bool = Field(default=True, alias="UI_ENABLED")
     max_upload_size_bytes: int = Field(default=1_048_576, alias="MAX_UPLOAD_SIZE_BYTES")
     allowed_document_extensions: list[str] = Field(
@@ -55,6 +58,8 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def fill_derived_paths(self) -> "Settings":
+        if self.max_chunk_size <= 0 or not 0 <= self.chunk_overlap < self.max_chunk_size:
+            raise ValueError("Нужны max_chunk_size > 0 и 0 <= chunk_overlap < max_chunk_size.")
         if self.documents_dir is None:
             self.documents_dir = self.data_dir / "documents"
         if self.index_path is None:
@@ -67,7 +72,7 @@ class Settings(BaseModel):
 
 
 def _resolve_path(value: str, base_dir: Path) -> str:
-    path = Path(value)
+    path = Path(value).expanduser()
     if path.is_absolute():
         return str(path)
     return str((base_dir / path).resolve())
@@ -89,6 +94,16 @@ def _load_config_file(config_path: Path) -> dict[str, Any]:
     documents = raw_config.get("documents", {})
 
     config: dict[str, Any] = {}
+    if "sources" in raw_config:
+        sources = raw_config["sources"]
+        if isinstance(sources, dict):
+            sources = {
+                name: {**source, "root": _resolve_path(source["root"], base_dir)}
+                if isinstance(source, dict) and isinstance(source.get("root"), str)
+                else source
+                for name, source in sources.items()
+            }
+        config["sources"] = sources
 
     if "name" in app:
         config["app_name"] = app["name"]

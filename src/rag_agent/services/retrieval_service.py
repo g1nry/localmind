@@ -41,7 +41,9 @@ class RetrievalService:
             contexts.append(
                 ContextItem(
                     text=record.text,
-                    source=record.metadata.get("filename", "unknown"),
+                    source=(f"{record.metadata['source_id'][:12]}/{record.metadata['relative_path']}"
+                            if "source_id" in record.metadata and "relative_path" in record.metadata
+                            else record.metadata.get("filename", "unknown")),
                     chunk_id=record.chunk_id,
                 )
             )

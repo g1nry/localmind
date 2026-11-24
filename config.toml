@@ -26,3 +26,8 @@ allowed_extensions = [".txt", ".md"]
 
 [ui]
 enabled = true
+
+# Необязательный источник; root задаётся относительно этого файла.
+# [sources.docs]
+# root = "./knowledge"
+# exclude = ["private/**", "**/drafts/**"]

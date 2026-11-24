@@ -11,14 +11,11 @@ from rag_agent.storage.errors import IndexLoadError, IndexWriteError
 class JsonVectorStore:
     def __init__(self, index_path: Path) -> None:
         self._index_path = index_path
-        self._index_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self._index_path.exists():
-            self._index_path.write_text("[]", encoding="utf-8")
 
     def load(self) -> list[VectorRecord]:
         try:
             if not self._index_path.exists():
-                self._index_path.write_text("[]", encoding="utf-8")
+                return []
 
             raw_data = json.loads(self._index_path.read_text(encoding="utf-8"))
             if not isinstance(raw_data, list):
@@ -44,7 +41,7 @@ class JsonVectorStore:
         filtered = [
             record
             for record in existing
-            if record.metadata.get("filename") != filename
+            if record.metadata.get("document_id", record.metadata.get("filename")) != filename
         ]
         filtered.extend(records)
         self._write(filtered)
@@ -55,6 +52,7 @@ class JsonVectorStore:
         temp_path = self._index_path.with_suffix(f"{self._index_path.suffix}.tmp")
 
         try:
+            self._index_path.parent.mkdir(parents=True, exist_ok=True)
             temp_path.write_text(serialized, encoding="utf-8")
             os.replace(temp_path, self._index_path)
         except OSError as exc:
