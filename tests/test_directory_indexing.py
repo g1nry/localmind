@@ -91,3 +91,68 @@ def test_read_error_does_not_stop_other_files(tmp_path, monkeypatch):
     assert report.counts['failed'] == 1
     assert report.counts['added'] == 1
     assert store.load()[0].text == 'good'
+
+
+def test_sources_with_same_relative_paths_stay_separate(tmp_path):
+    service, store, _ = make_service(tmp_path)
+    for name in ['first', 'second']:
+        root = tmp_path / name
+        root.mkdir()
+        (root / 'notes.md').write_text(name)
+        asyncio.run(service.index(DirectorySource(root=root)))
+    assert {item.text for item in store.load()} == {'first', 'second'}
+    assert len({item.metadata['source_id'] for item in store.load()}) == 2
+
+
+def test_dry_run_preserves_existing_index_and_force_rebuilds(tmp_path):
+    root = tmp_path / 'source'
+    root.mkdir()
+    (root / 'notes.md').write_text('initial')
+    service, store, embeddings = make_service(tmp_path)
+    source = DirectorySource(root=root)
+    asyncio.run(service.index(source))
+    before = service._settings.index_path.read_bytes()
+    report = asyncio.run(service.index(source, force=True, dry_run=True))
+    assert report.counts['updated'] == 1
+    assert embeddings.calls == 1
+    assert service._settings.index_path.read_bytes() == before
+    asyncio.run(service.index(source, force=True))
+    assert embeddings.calls == 2
+    service._settings.ollama_embedding_model = 'different-model'
+    assert asyncio.run(service.index(source)).counts['updated'] == 1
+    assert embeddings.calls == 3
+
+
+def test_unreadable_subdirectory_is_reported_without_erasing_index(tmp_path, monkeypatch):
+    import os
+    root = tmp_path / 'source'
+    (root / 'locked').mkdir(parents=True)
+    (root / 'locked' / 'notes.md').write_text('previous')
+    service, store, _ = make_service(tmp_path)
+    source = DirectorySource(root=root)
+    asyncio.run(service.index(source))
+    real_scandir = os.scandir
+
+    def scandir(path):
+        if str(path) == str(root / 'locked'):
+            raise PermissionError(13, 'denied', str(path))
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, 'scandir', scandir)
+    report = asyncio.run(service.index(source))
+    assert report.counts['failed'] == 1
+    assert report.files[0].path == 'locked'
+    assert store.load()[0].text == 'previous'
+
+
+def test_large_file_fails_before_embeddings(tmp_path):
+    root = tmp_path / 'source'
+    root.mkdir()
+    (root / 'large.md').write_bytes(b'x' * 101)
+    service, store, embeddings = make_service(tmp_path)
+    service._settings.max_upload_size_bytes = 100
+    report = asyncio.run(service.index(DirectorySource(root=root)))
+    assert report.counts['failed'] == 1
+    assert embeddings.calls == 0
+    assert store.load() == []
+    assert not (tmp_path / 'data').exists()

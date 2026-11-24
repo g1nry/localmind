@@ -58,6 +58,8 @@ class Settings(BaseModel):
 
     @model_validator(mode="after")
     def fill_derived_paths(self) -> "Settings":
+        if self.max_chunk_size <= 0 or not 0 <= self.chunk_overlap < self.max_chunk_size:
+            raise ValueError("Нужны max_chunk_size > 0 и 0 <= chunk_overlap < max_chunk_size.")
         if self.documents_dir is None:
             self.documents_dir = self.data_dir / "documents"
         if self.index_path is None:
@@ -93,10 +95,15 @@ def _load_config_file(config_path: Path) -> dict[str, Any]:
 
     config: dict[str, Any] = {}
     if "sources" in raw_config:
-        config["sources"] = {
-            name: {**source, "root": _resolve_path(source["root"], base_dir)}
-            for name, source in raw_config["sources"].items()
-        }
+        sources = raw_config["sources"]
+        if isinstance(sources, dict):
+            sources = {
+                name: {**source, "root": _resolve_path(source["root"], base_dir)}
+                if isinstance(source, dict) and isinstance(source.get("root"), str)
+                else source
+                for name, source in sources.items()
+            }
+        config["sources"] = sources
 
     if "name" in app:
         config["app_name"] = app["name"]

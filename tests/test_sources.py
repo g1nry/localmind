@@ -36,3 +36,12 @@ def test_missing_index_is_read_only_and_source_replacement_keeps_legacy(tmp_path
     source.text = 'updated'
     store.replace_document('doc', [source])
     assert [item.text for item in store.load()] == ['legacy', 'updated']
+
+
+def test_source_missing_root_has_validation_error(tmp_path):
+    import pytest
+    from pydantic import ValidationError
+    config = tmp_path / 'config.toml'
+    config.write_text('[sources.docs]\nexclude = ["private/**"]\n')
+    with pytest.raises(ValidationError, match='root'):
+        load_settings(config)
