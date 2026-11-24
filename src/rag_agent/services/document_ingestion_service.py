@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from rag_agent.core.config import Settings
-from rag_agent.domain.schemas import DocumentIngestResponse
+from rag_agent.domain.schemas import DocumentIngestResponse, VectorRecord
 from rag_agent.rag.chunking import split_text
 from rag_agent.services.document_errors import (
     DocumentEncodingError,
@@ -9,9 +9,8 @@ from rag_agent.services.document_errors import (
     EmptyDocumentError,
     UnsupportedDocumentTypeError,
 )
-from rag_agent.services.llm_service import LLMService
+from rag_agent.domain.contracts import EmbeddingProvider, VectorStore
 from rag_agent.storage.document_store import DocumentStore
-from rag_agent.storage.vector_store import JsonVectorStore, VectorRecord
 
 
 class DocumentIngestionService:
@@ -19,13 +18,13 @@ class DocumentIngestionService:
         self,
         settings: Settings,
         document_store: DocumentStore,
-        vector_store: JsonVectorStore,
-        llm_service: LLMService,
+        vector_store: VectorStore,
+        embedding_provider: EmbeddingProvider,
     ) -> None:
         self._settings = settings
         self._document_store = document_store
         self._vector_store = vector_store
-        self._llm_service = llm_service
+        self._embedding_provider = embedding_provider
 
     async def ingest_document(self, filename: str, content: bytes) -> DocumentIngestResponse:
         self._validate_file(filename, content)
@@ -48,7 +47,7 @@ class DocumentIngestionService:
 
         records: list[VectorRecord] = []
         for index, chunk in enumerate(chunks):
-            embedding = await self._llm_service.embed(chunk)
+            embedding = await self._embedding_provider.embed(chunk)
             records.append(
                 VectorRecord(
                     chunk_id=f"{stored_filename}:{index}",

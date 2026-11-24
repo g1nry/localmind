@@ -1,52 +1,23 @@
-#!/usr/bin/env python3
-"""
-Полноценный тест RedTeamAgent (RAG + dangerous tools)
-"""
+"""Ручной чат с RAG; Ollama запускается отдельно."""
 import asyncio
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from rag_agent.agents import red_team_agent
-from rag_agent.services.retrieval_service import retrieval_service
+from rag_agent.bootstrap import open_services
 
 
 async def main():
-    print("🚀 Полноценный тест RedTeamAgent (RAG + Tools)")
-    print("=" * 55)
-
-    print("📦 Инициализация...")
-    await red_team_agent.initialize(retrieval_service=retrieval_service)
-    print("✅ Агент готов!\n")
-
-    print("Примеры команд:")
-    print("  - 'какие документы у тебя есть?'")
-    print("  - 'выполни команду ls -la'")
-    print("  - 'создай файл test.txt с текстом hello world'")
-    print("\nВведите сообщение (или 'exit'):\n")
-
-    while True:
-        try:
-            user_input = input("> ").strip()
-            if user_input.lower() in ["exit", "quit", "q"]:
+    async with open_services() as services:
+        agent = await services.get_agent()
+        print("LocalMind: задайте вопрос, exit — выход.")
+        while True:
+            try:
+                message = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
                 break
-            if not user_input:
-                continue
-
-            print("\n🤖 Агент думает...")
-            result = await red_team_agent.ainvoke(
-                message=user_input,
-                thread_id="full_test"
-            )
-
-            print(f"\n📝 Ответ:\n{result['response']}\n")
-            print("-" * 55)
-
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"❌ Ошибка: {e}")
+            if message.lower() in {"exit", "quit"}:
+                break
+            if message:
+                result = await agent.ainvoke(message)
+                print(result["response"])
 
 
 if __name__ == "__main__":

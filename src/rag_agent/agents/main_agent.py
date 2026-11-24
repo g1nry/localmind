@@ -1,37 +1,32 @@
 from typing import Dict, Any
 from langgraph.prebuilt import create_react_agent
-from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import logging
 
-from ..tools.registry import tool_registry
+from ..tools.registry import ToolRegistry
 from ..tools.langchain_adapter import LangChainToolAdapter
-from ..core.config import get_settings
+from ..core.config import Settings
+from ..domain.errors import AgentError
 
 logger = logging.getLogger(__name__)
 
 
 class RedTeamAgent:
-    def __init__(self):
-        self.llm = None
+    def __init__(self, settings: Settings, llm):
+        self.llm = llm
+        self.tool_registry = ToolRegistry()
         self.graph = None
-        self.config = get_settings()
+        self.config = settings
         self.initialized = False
 
     async def initialize(self, retrieval_service=None):
         if self.initialized:
             return
 
-        await tool_registry.initialize(retrieval_service)
+        await self.tool_registry.initialize(retrieval_service)
 
-        self.llm = ChatOllama(
-            model=getattr(self.config, "ollama_chat_model", "qwen2.5:7b"),
-            base_url=str(getattr(self.config, "ollama_base_url", "http://localhost:11434")),
-            temperature=0.3,
-        )
-
-        raw_tools = tool_registry.get_all_tools()
+        raw_tools = self.tool_registry.get_all_tools()
         langchain_tools = [LangChainToolAdapter(tool) for tool in raw_tools]
 
         system_prompt = """Ты — полезный ассистент с доступом к инструментам.
@@ -68,7 +63,4 @@ class RedTeamAgent:
             return {"response": final_message, "thread_id": thread_id, "success": True}
         except Exception as e:
             logger.error(f"Agent error: {e}")
-            return {"response": f"Ошибка: {str(e)}", "success": False}
-
-
-red_team_agent = RedTeamAgent()
+            raise AgentError("Агент не смог сформировать ответ.") from e
