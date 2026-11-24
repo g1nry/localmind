@@ -10,6 +10,7 @@ import httpx
 from rag_agent.core.config import Settings, get_settings
 from rag_agent.domain.errors import AgentError
 from rag_agent.integrations.ollama.client import OllamaClient
+from rag_agent.services.directory_indexing_service import DirectoryIndexingService
 from rag_agent.services.document_ingestion_service import DocumentIngestionService
 from rag_agent.services.embedding_service import EmbeddingService
 from rag_agent.services.retrieval_service import RetrievalService
@@ -26,6 +27,7 @@ class ApplicationServices:
     settings: Settings
     retrieval: RetrievalService
     ingestion: DocumentIngestionService
+    indexing: DirectoryIndexingService
     _stack: AsyncExitStack = field(repr=False)
     agent: RedTeamAgent | None = field(default=None, init=False)
     _agent_lock: Lock = field(default_factory=Lock, init=False, repr=False)
@@ -77,12 +79,14 @@ async def open_services(settings: Settings | None = None):
         stack.push_async_callback(client.close)
         embeddings = EmbeddingService(client, settings)
         vector_store = JsonVectorStore(settings.index_path)
+        ingestion = DocumentIngestionService(
+            settings, DocumentStore(settings.documents_dir), vector_store, embeddings
+        )
         services = ApplicationServices(
             settings=settings,
             retrieval=RetrievalService(settings, vector_store, embeddings),
-            ingestion=DocumentIngestionService(
-                settings, DocumentStore(settings.documents_dir), vector_store, embeddings
-            ),
+            ingestion=ingestion,
+            indexing=DirectoryIndexingService(settings, vector_store, ingestion),
             _stack=stack,
         )
         try:
