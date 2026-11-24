@@ -74,3 +74,34 @@ def test_empty_index_does_not_require_embedding_model(tmp_path):
     settings = build_settings(tmp_path)
     service = RetrievalService(settings, JsonVectorStore(settings.index_path), UnavailableEmbeddings())
     assert asyncio.run(service.retrieve_context('question')).contexts == []
+
+
+def test_source_filter_applies_before_scoring_and_budget_is_global(tmp_path):
+    settings = build_settings(tmp_path)
+    store = JsonVectorStore(settings.index_path)
+    store.add_many([
+        VectorRecord(chunk_id='foreign', text='foreign', embedding=[1.0, 2.0, 3.0],
+                     metadata={'source_id': 'other'}),
+        VectorRecord(chunk_id='a', text='abcdef', embedding=[1.0, 0.0],
+                     metadata={'source_id': 'chosen', 'fingerprint': 'v1'}),
+        VectorRecord(chunk_id='b', text='ghijkl', embedding=[1.0, 0.0],
+                     metadata={'source_id': 'chosen', 'fingerprint': 'v2'}),
+    ])
+    service = RetrievalService(settings, store, FakeLLMService())
+    result = asyncio.run(service.retrieve_context('alpha', top_k=2, source_id='chosen', max_chars=8))
+    assert [item.text for item in result.contexts] == ['abcdef', 'gh']
+    assert result.truncated and result.contexts[1].truncated
+    assert result.contexts[0].score == 1.0
+    assert [item.version for item in result.contexts] == ['v1', 'v2']
+    assert asyncio.run(service.retrieve_context('alpha', source_id='missing')).contexts == []
+
+
+def test_blank_query_and_invalid_limits_fail_before_embeddings(tmp_path):
+    import pytest
+    from pydantic import ValidationError
+    settings = build_settings(tmp_path)
+    service = RetrievalService(settings, JsonVectorStore(settings.index_path), FakeLLMService())
+    for kwargs in [{'query': '   '}, {'query': 'alpha', 'top_k': 0},
+                   {'query': 'alpha', 'max_chars': 0}, {'query': 'alpha', 'top_k': 101}]:
+        with pytest.raises(ValidationError):
+            asyncio.run(service.retrieve_context(**kwargs))
