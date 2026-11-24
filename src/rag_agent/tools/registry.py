@@ -42,6 +42,3 @@ class ToolRegistry:
                 f"- {meta['name']}: {meta['description']} [RISK: {risk.upper()}]"
             )
         return "\n".join(descriptions)
-
-
-tool_registry = ToolRegistry()

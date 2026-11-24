@@ -55,7 +55,7 @@ def test_retrieval_returns_ranked_contexts(tmp_path: Path) -> None:
     retrieval_service = RetrievalService(
         settings=settings,
         vector_store=vector_store,
-        llm_service=FakeLLMService(),
+        embedding_provider=FakeLLMService(),
     )
 
     result = asyncio.run(retrieval_service.retrieve_context("alpha", top_k=2))
@@ -64,3 +64,13 @@ def test_retrieval_returns_ranked_contexts(tmp_path: Path) -> None:
     assert result.contexts[0].chunk_id == "doc.txt:0"
     assert result.contexts[0].source == "doc.txt"
     assert result.contexts[0].text == "alpha text"
+
+
+def test_empty_index_does_not_require_embedding_model(tmp_path):
+    class UnavailableEmbeddings:
+        async def embed(self, text):
+            raise AssertionError('Empty index must not call a model')
+
+    settings = build_settings(tmp_path)
+    service = RetrievalService(settings, JsonVectorStore(settings.index_path), UnavailableEmbeddings())
+    assert asyncio.run(service.retrieve_context('question')).contexts == []

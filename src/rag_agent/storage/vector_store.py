@@ -1,18 +1,11 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
+from rag_agent.domain.schemas import VectorRecord
 from rag_agent.storage.errors import IndexLoadError, IndexWriteError
-
-
-class VectorRecord(BaseModel):
-    chunk_id: str
-    text: str
-    embedding: list[float]
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class JsonVectorStore:

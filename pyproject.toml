@@ -15,7 +15,7 @@ dependencies = [
     "uvicorn",
     "pydantic",
     "langchain-core>=0.3,<2",
-    "langchain-ollama>=0.3,<2",
+    "langchain-ollama>=1.1,<2",
     "langgraph>=0.6,<2",
     "httpx",
 ]

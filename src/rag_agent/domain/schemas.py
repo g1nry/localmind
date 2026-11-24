@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import Any, List, Optional
 
 
 class ContextItem(BaseModel):
@@ -9,8 +9,8 @@ class ContextItem(BaseModel):
 
 
 class RetrievalRequest(BaseModel):
-    query: str
-    top_k: Optional[int] = None
+    query: str = Field(min_length=1)
+    top_k: Optional[int] = Field(default=None, gt=0)
 
 
 class RetrievalResult(BaseModel):
@@ -23,3 +23,10 @@ class RetrievalResponse(BaseModel):
 class DocumentIngestResponse(BaseModel):
     filename: str
     chunks_indexed: int
+
+
+class VectorRecord(BaseModel):
+    chunk_id: str
+    text: str
+    embedding: list[float]
+    metadata: dict[str, Any] = Field(default_factory=dict)

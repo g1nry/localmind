@@ -39,7 +39,7 @@ ollama pull nomic-embed-text
 localmind
 ```
 
-Backend будет доступен по адресу `http://127.0.0.1:8000`, документация API — `/docs`, проверка состояния — `/health`.
+Backend будет доступен по адресу `http://127.0.0.1:8000`, документация API — `/docs`, проверка состояния — `/health`. Агент создаётся при первом чат-запросе, поэтому до него `agent_initialized` в `/health` равен `false`.
 
 Команда `localmind` пока запускает сервер. Также доступен `python -m rag_agent`: внутреннее имя Python-пакета сохранено от исходного проекта.
 
@@ -50,6 +50,30 @@ curl http://127.0.0.1:8000/api/agent/chat \
 ```
 
 `POST /api/v1/chat` — совместимый маршрут с тем же поведением. Агент сам выбирает, вызывать ли поиск. Индекс изначально пуст; автоматическое сканирование папок и HTTP-загрузка документов пока не подключены. Сервис индексации находится в `src/rag_agent/services/document_ingestion_service.py`.
+
+## Программный поиск без chat-модели
+
+Сервисы создаются явно и закрывают HTTP-клиенты при выходе из контекста. Импорт модулей не открывает соединения и не создаёт индекс. Для поиска нужна только embedding-модель; генерация и агент не запускаются. Пустой индекс возвращает пустую выдачу без обращения к Ollama.
+
+```python
+import asyncio
+
+from rag_agent.bootstrap import open_services
+
+
+async def main():
+    async with open_services() as services:
+        result = await services.retrieval.retrieve_context("Что описано в документах?", top_k=3)
+        for context in result.contexts:
+            print(context.source, context.text)
+
+
+asyncio.run(main())
+```
+
+Для отдельного приложения или теста можно передать `Settings` в `open_services(settings)` или создать HTTP-приложение через `create_app(settings)` из `rag_agent.main`. Состояние и инструменты каждого экземпляра изолированы. Chat-клиент подключается к указанному адресу Ollama напрямую, без proxy-настроек окружения; его пулы соединений принадлежат контексту сервисов. Прежние глобальные экземпляры `retrieval_service`, `red_team_agent` и `tool_registry` заменены явным созданием сервисов; примеры в `examples/` обновлены.
+
+Оба HTTP-маршрута чата сохраняют формат успешного ответа `answer`/`contexts`. Ошибка выполнения агента теперь возвращает HTTP 502 с полем `detail`, а не успешный ответ с текстом ошибки.
 
 ## Конфигурация
 
